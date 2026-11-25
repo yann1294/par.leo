@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { BookOpen, Headphones, PenLine, Play, Square } from 'lucide-react';
 import { skillActivities } from '../lib/skills.mjs';
 
+// Complementary reading, listening, and writing exercises share one persistence model:
+// one upserted skill_attempt per student/activity, synchronized through Supabase.
 export function SkillModules({ t, exam, user, attempts, onSave, onAuth }) {
   const [skill, setSkill] = useState('reading');
   const activity = skillActivities[exam][skill];
@@ -18,6 +20,8 @@ export function SkillModules({ t, exam, user, attempts, onSave, onAuth }) {
     try { await onSave({ exam, skill, activity_id: activity.id, response, score }); setFeedback(score === 100 ? t('correct') : skill === 'writing' ? t('writingSaved') : t('tryAgain')); }
     catch { setFeedback(t('error')); } finally { setBusy(false); }
   };
+  // SpeechSynthesis provides a lightweight listening exercise without shipping or
+  // storing copyrighted audio files. The French voice depends on browser/OS support.
   const listen = () => {
     if (!('speechSynthesis' in window)) { setFeedback(t('audioUnsupported')); return; }
     if (speaking) { speechSynthesis.cancel(); setSpeaking(false); return; }

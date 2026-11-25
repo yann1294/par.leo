@@ -4,6 +4,11 @@ import { Check, FilePlus2, Send, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formats } from '../lib/exams.mjs';
 
+/**
+ * Teacher/admin content workflow.
+ * Teachers own drafts and submit them for review. Only admins can publish or reject a
+ * submission. UI checks improve clarity, while Supabase RLS enforces every transition.
+ */
 export function StaffConsole({ t, user, role }) {
   const [topics, setTopics] = useState([]), [format, setFormat] = useState('tcf-2'), [title, setTitle] = useState(''), [context, setContext] = useState(''), [note, setNote] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false);
   const refresh = useCallback(async () => { const { data, error } = await supabase.from('topics').select('*').order('created_at', { ascending: false }); if (!error) setTopics(data); }, []);
@@ -11,6 +16,8 @@ export function StaffConsole({ t, user, role }) {
   const run = async action => { setBusy(true); setMessage(''); try { const { error } = await action(); if (error) throw error; await refresh(); setMessage(t('saved')); } catch { setMessage(t('error')); } finally { setBusy(false); } };
   const create = event => { event.preventDefault(); const id = crypto.randomUUID(); run(() => supabase.from('topics').insert({ id, owner_id: user.id, format, published: false, moderation_status: 'draft', content: { id, format, title: title.trim(), context: context.trim(), name: 'Expression orale', color: 'sage', qa: [] } })).then(() => { setTitle(''); setContext(''); }); };
   const submit = id => run(() => supabase.from('topics').update({ moderation_status: 'submitted', moderation_note: '' }).eq('id', id));
+  // Publishing and moderation status are updated atomically so a rejected topic can
+  // never remain visible in the public student catalog.
   const moderate = (id, approved) => run(() => supabase.from('topics').update({ moderation_status: approved ? 'approved' : 'rejected', published: approved, moderation_note: note.trim(), moderated_by: user.id, moderated_at: new Date().toISOString() }).eq('id', id));
   return <div className="staff-console"><div className="section-heading"><div><h2>{t('contentStudio')}</h2><p>{t('staffHelp')}</p></div><span className="chip">{role}</span></div><form className="staff-editor" onSubmit={create}><h3><FilePlus2 size={20}/>{t('newSubject')}</h3><label>{t('choose')}<select value={format} onChange={event => setFormat(event.target.value)}>{Object.entries(formats).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}</select></label><label>{t('title')}<input required minLength={3} maxLength={120} lang="fr" value={title} onChange={event => setTitle(event.target.value)}/></label><label>{t('prompt')}<textarea required minLength={15} maxLength={4000} rows={4} lang="fr" value={context} onChange={event => setContext(event.target.value)}/></label><button className="primary" disabled={busy}>{t('saveDraft')}</button></form>{role === 'admin' && <label>{t('moderationNote')}<input maxLength={1000} value={note} onChange={event => setNote(event.target.value)}/></label>}<div className="moderation-list">{topics.filter(item => item.owner_id).map(item => <article key={item.id}><div><span className={`status status-${item.moderation_status}`}>{t(item.moderation_status)}</span><h3 lang="fr">{item.content.title}</h3><p lang="fr">{item.content.context}</p>{item.moderation_note && <small>{item.moderation_note}</small>}</div><div>{item.owner_id === user.id && ['draft','rejected'].includes(item.moderation_status) && <button className="outline" disabled={busy} onClick={() => submit(item.id)}><Send size={16}/>{t('submitReview')}</button>}{role === 'admin' && item.moderation_status === 'submitted' && <><button className="primary" disabled={busy} onClick={() => moderate(item.id, true)}><Check size={16}/>{t('approve')}</button><button className="outline" disabled={busy} onClick={() => moderate(item.id, false)}><X size={16}/>{t('reject')}</button></>}</div></article>)}</div>{message && <p className="notice" role="status">{message}</p>}</div>;
 }

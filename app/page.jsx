@@ -10,6 +10,12 @@ import { SkillModules } from './skill-modules';
 import { GoalsAnalytics } from './goals-analytics';
 import { StaffConsole } from './staff-console';
 
+/**
+ * Application shell and client-side page router.
+ * Public visitors can explore the exam catalog; authenticated users gain cloud-backed
+ * progress features, while the staff navigation is rendered only when the protected
+ * get_staff_role RPC confirms a teacher or administrator role.
+ */
 export default function App() {
   const db = usePlatform();
   const [locale, setLocale] = useState('en'), [page, setPage] = useState('home'), [exam, setExam] = useState('TCF');
@@ -58,6 +64,7 @@ export default function App() {
   const drafts = db.records.filter(r => r.status === 'draft' && formats[r.format].exam === exam);
   const stats = summarize(completed);
   const visible = filterTopics(db.topics, exam, task, search).filter(topic => page !== 'favorites' || db.favorites.includes(topic.id));
+  // Staff tools are absent—not merely disabled—for ordinary student accounts.
   const nav = [['home', Home], ['dashboard', LayoutDashboard], ['library', Library], ['skills', GraduationCap], ['goals', Target], ['favorites', Bookmark], ['progress', ChartNoAxesCombined], ...(db.staffRole ? [['staff', ShieldCheck]] : [])];
   const displayName = db.profile?.display_name || db.user?.user_metadata?.display_name || t('student');
   const languageControl = <label className="language-control"><Globe2 size={17}/><select aria-label="Language / Langue" value={locale} onChange={e => setLocale(e.target.value)}>{Object.entries(languages).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>;

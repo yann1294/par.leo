@@ -2,6 +2,8 @@
 
 Parléo is a multilingual Next.js student workspace for French oral-exam practice. The interface is available in French, English, Spanish, and Arabic (RTL); practice prompts remain in French, as they are on the exams.
 
+For a complete explanation of the application, data model, security rules, synchronization, staff workflow, analytics, audio coaching, and accessibility approach, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ## What is implemented
 
 - A public landing page instead of opening in the teacher workspace.

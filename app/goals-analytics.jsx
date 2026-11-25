@@ -3,12 +3,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bell, Flame, Target } from 'lucide-react';
 
 const dayKey = value => new Date(value).toLocaleDateString('en-CA');
+/** Combines oral sessions and skill attempts into a normalized analytics timeline. */
 export function GoalsAnalytics({ t, records, attempts, goal, user, onSave, onAuth }) {
   const [target, setTarget] = useState(goal?.weekly_sessions || 3), [enabled, setEnabled] = useState(goal?.reminder_enabled || false), [time, setTime] = useState(goal?.reminder_time?.slice(0,5) || '18:00'), [message, setMessage] = useState('');
   useEffect(() => { if (goal) { setTarget(goal.weekly_sessions); setEnabled(goal.reminder_enabled); setTime(goal.reminder_time.slice(0,5)); } }, [goal?.updated_at]);
   const analytics = useMemo(() => {
     const activity = [...records.filter(item => item.status === 'completed').map(item => ({ date: item.updated_at, score: item.scores.reduce((a,b) => a+b,0) * 5, skill: 'speaking' })), ...attempts.map(item => ({ date: item.updated_at, score: Number(item.score || 0), skill: item.skill }))];
     const days = new Map(); activity.forEach(item => days.set(dayKey(item.date), (days.get(dayKey(item.date)) || 0) + 1));
+    // A streak remains active when the student practiced today or yesterday; this avoids
+    // resetting a streak early in the morning before the day's planned practice.
     let streak = 0, cursor = new Date(); if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1); while (days.has(dayKey(cursor))) { streak++; cursor.setDate(cursor.getDate() - 1); }
     const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); weekStart.setHours(0,0,0,0);
     const week = activity.filter(item => new Date(item.date) >= weekStart).length;
@@ -17,6 +20,8 @@ export function GoalsAnalytics({ t, records, attempts, goal, user, onSave, onAut
     return { streak, week, recent, skills };
   }, [records, attempts]);
   useEffect(() => {
+    // Browser reminders intentionally run only while Parléo is open. localStorage keeps
+    // the minute-level check from showing the same notification more than once.
     if (!enabled || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     const check = () => { const now = new Date(), stamp = `${dayKey(now)}-${time}`; if (now.toTimeString().slice(0,5) === time && localStorage.getItem('parleo-reminder') !== stamp) { new Notification('Parléo', { body: t('reminderBody') }); localStorage.setItem('parleo-reminder', stamp); } };
     check(); const timer = setInterval(check, 60000); return () => clearInterval(timer);

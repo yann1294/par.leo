@@ -1,5 +1,7 @@
 begin;
 
+-- Staff membership is intentionally separate from user-editable profiles. This prevents
+-- a student from escalating their own account by updating a profile field.
 create table public.staff_roles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   role text not null check (role in ('teacher','admin')),
@@ -8,6 +10,8 @@ create table public.staff_roles (
 alter table public.staff_roles enable row level security;
 revoke all on public.staff_roles from anon, authenticated;
 
+-- SECURITY DEFINER functions expose only the current user's role/boolean result; direct
+-- reads of staff_roles remain revoked from browser roles.
 create function public.get_staff_role() returns text language sql stable security definer set search_path = '' as $$
   select role from public.staff_roles where user_id = auth.uid();
 $$;
@@ -38,6 +42,7 @@ create policy topics_staff_delete on public.topics for delete to authenticated u
 );
 grant insert, update, delete on public.topics to authenticated;
 
+-- Goal preferences are private, realtime-synchronized records owned by each student.
 create table public.student_goals (
   user_id uuid primary key default auth.uid() references auth.users(id) on delete cascade,
   weekly_sessions integer not null default 3 check (weekly_sessions between 1 and 21),

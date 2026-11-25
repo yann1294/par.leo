@@ -4,6 +4,8 @@ import { X, Clock, Mic, Pause, Play, RotateCcw, Square, Trash2 } from 'lucide-re
 import { supabase } from '../lib/supabase';
 import { formats, formatTime } from '../lib/exams.mjs';
 
+// Authentication, profile, modal, timed practice, and audio-coaching UI live together
+// because they share the lifecycle of a single student practice session.
 export function Modal({ title, closeLabel, onClose, wide, children }) {
   const ref = useRef(null), close = useRef(onClose);
   close.current = onClose;
@@ -83,6 +85,8 @@ export function PracticeSession({ t, topic, record, user, onSave, onAuth }) {
     const interval = setInterval(tick, 200);
     return () => clearInterval(interval);
   }, [running, phase]);
+  // React state can trail the wall clock between timer ticks. Snapshotting from the
+  // recorded start time guarantees that Save persists the exact elapsed duration.
   const snapshotClock = () => {
     if (clockState.current) {
       const { start, remaining, duration } = clockState.current;
@@ -115,6 +119,9 @@ export function PracticeSession({ t, topic, record, user, onSave, onAuth }) {
 
 function AudioCoach({ t, previous, onFeedback }) {
   const [recording, setRecording] = useState(false), [audioUrl, setAudioUrl] = useState(''), [message, setMessage] = useState(''), [transcript, setTranscript] = useState(previous?.transcript || '');
+  // Mutable refs collect recorder and speech-recognition data without forcing a render
+  // for every audio chunk. transcriptRef also avoids calling the parent from a React
+  // state updater, which would trigger a cross-component setState warning.
   const media = useRef(null), recognition = useRef(null), chunks = useRef([]), started = useRef(0), confidence = useRef([]), transcriptRef = useRef(previous?.transcript || '');
   useEffect(() => () => { if (audioUrl) URL.revokeObjectURL(audioUrl); media.current?.stream?.getTracks().forEach(track => track.stop()); recognition.current?.stop?.(); }, [audioUrl]);
   const start = async () => {
@@ -132,6 +139,8 @@ function AudioCoach({ t, previous, onFeedback }) {
         const words = current.trim() ? current.trim().split(/\s+/).length : 0;
         const fillers = (current.match(/\b(euh|hum|heu)\b/gi) || []).length;
         setTranscript(current);
+        // Only derived feedback is synchronized with the session. The audio Blob stays
+        // in this browser tab and is released when cleared or when the component unmounts.
         onFeedback({ transcript: current, seconds, words_per_minute: Math.round(words * 60 / seconds), pronunciation: confidence.current.length ? Math.round(confidence.current.reduce((a, b) => a + b, 0) / confidence.current.length * 100) : null, fillers });
       };
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
